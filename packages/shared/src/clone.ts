@@ -7,6 +7,9 @@ export const shallowClone = (values: any) => {
     if ('$$typeof' in values && '_owner' in values) {
       return values
     }
+    if (values['_isBigNumber']) {
+      return values
+    }
     if (values['_isAMomentObject']) {
       return values
     }
@@ -37,6 +40,9 @@ export const clone = (values: any) => {
     return res
   } else if (isPlainObj(values)) {
     if ('$$typeof' in values && '_owner' in values) {
+      return values
+    }
+    if (values['_isBigNumber']) {
       return values
     }
     if (values['_isAMomentObject']) {

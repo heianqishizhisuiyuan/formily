@@ -17,14 +17,14 @@ import {
 } from '@formily/react'
 import { toArr } from '@formily/shared'
 import cls from 'classnames'
-import ArrayBase, { ArrayBaseMixins } from '../array-base'
+import ArrayBase, { ArrayBaseMixins, IArrayBaseProps } from '../array-base'
 import { usePrefixCls } from '../__builtins__'
 
 export interface IArrayCollapseProps extends CollapseProps {
   defaultOpenPanelCount?: number
 }
 type ComposedArrayCollapse = React.FC<
-  React.PropsWithChildren<IArrayCollapseProps>
+  React.PropsWithChildren<IArrayCollapseProps & IArrayBaseProps>
 > &
   ArrayBaseMixins & {
     CollapsePanel?: React.FC<React.PropsWithChildren<CollapsePanelProps>>
@@ -79,22 +79,23 @@ const insertActiveKeys = (activeKeys: number[], index: number) => {
 }
 
 export const ArrayCollapse: ComposedArrayCollapse = observer(
-  (props: IArrayCollapseProps) => {
+  ({ defaultOpenPanelCount = 5, ...props }) => {
     const field = useField<ArrayField>()
     const dataSource = Array.isArray(field.value) ? field.value : []
     const [activeKeys, setActiveKeys] = useState<number[]>(
-      takeDefaultActiveKeys(dataSource.length, props.defaultOpenPanelCount)
+      takeDefaultActiveKeys(dataSource.length, defaultOpenPanelCount)
     )
     const schema = useFieldSchema()
     const prefixCls = usePrefixCls('formily-array-collapse', props)
     useEffect(() => {
       if (!field.modified && dataSource.length) {
         setActiveKeys(
-          takeDefaultActiveKeys(dataSource.length, props.defaultOpenPanelCount)
+          takeDefaultActiveKeys(dataSource.length, defaultOpenPanelCount)
         )
       }
     }, [dataSource.length, field])
     if (!schema) throw new Error('can not found schema object')
+    const { onAdd, onCopy, onRemove, onMoveDown, onMoveUp } = props
 
     const renderAddition = () => {
       return schema.reduceProperties((addition, schema, key) => {
@@ -131,9 +132,7 @@ export const ArrayCollapse: ComposedArrayCollapse = observer(
               .get('componentProps')
             const props: CollapsePanelProps = items['x-component-props']
             const header = () => {
-              const header = `${
-                panelProps?.header || props.header || field.title
-              }`
+              const header = panelProps?.header || props.header || field.title
               const path = field.address.concat(index)
               const errors = field.form.queryFeedbacks({
                 type: 'error',
@@ -215,8 +214,13 @@ export const ArrayCollapse: ComposedArrayCollapse = observer(
     return (
       <ArrayBase
         onAdd={(index) => {
+          onAdd?.(index)
           setActiveKeys(insertActiveKeys(activeKeys, index))
         }}
+        onCopy={onCopy}
+        onRemove={onRemove}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
       >
         {renderEmpty()}
         {renderItems()}
@@ -234,9 +238,6 @@ const CollapsePanel: React.FC<React.PropsWithChildren<CollapsePanelProps>> = ({
 
 CollapsePanel.displayName = 'CollapsePanel'
 
-ArrayCollapse.defaultProps = {
-  defaultOpenPanelCount: 5,
-}
 ArrayCollapse.displayName = 'ArrayCollapse'
 ArrayCollapse.CollapsePanel = CollapsePanel
 

@@ -39,6 +39,7 @@ import {
   IFormFeedback,
   LifeCycleTypes,
   FieldMatchPattern,
+  FieldFeedbackTypes,
 } from '../types'
 import {
   isArrayField,
@@ -57,6 +58,7 @@ import {
   GlobalState,
   ReadOnlyProperties,
 } from './constants'
+import { BaseField } from '../models/BaseField'
 
 const hasOwnProperty = Object.prototype.hasOwnProperty
 
@@ -157,7 +159,7 @@ export const patchFieldStates = (
       if (payload) {
         target[address] = payload
         if (target[oldAddress] === payload) {
-          delete target[oldAddress]
+          target[oldAddress] = undefined
         }
       }
       if (address && payload) {
@@ -311,13 +313,13 @@ export const validateToFeedbacks = async (
   })
 
   batch(() => {
-    each(results, (messages, type) => {
+    each(results, (messages, type: FieldFeedbackTypes) => {
       field.setFeedback({
         triggerType,
         type,
         code: pascalCase(`validate-${type}`),
         messages: messages,
-      } as any)
+      })
     })
   })
   return results
@@ -878,6 +880,17 @@ export const batchSubmit = async <T>(
   return results
 }
 
+const shouldValidate = (field: Field) => {
+  const validatePattern = field.props.validatePattern ??
+    field.form.props.validatePattern ?? ['editable']
+  const validateDisplay = field.props.validateDisplay ??
+    field.form.props.validateDisplay ?? ['visible']
+  return (
+    validatePattern.includes(field.pattern) &&
+    validateDisplay.includes(field.display)
+  )
+}
+
 export const batchValidate = async (
   target: Form | Field,
   pattern: FormPathPattern,
@@ -885,7 +898,7 @@ export const batchValidate = async (
 ) => {
   if (isForm(target)) target.setValidating(true)
   else {
-    if (target.pattern !== 'editable' || target.display !== 'visible') return
+    if (!shouldValidate(target)) return
   }
   const tasks = []
   target.query(pattern).forEach((field) => {
@@ -943,7 +956,7 @@ export const validateSelf = batch.bound(
       }
     }
 
-    if (target.pattern !== 'editable' || target.display !== 'visible') return {}
+    if (!shouldValidate(target)) return {}
     start()
     if (!triggerType) {
       const allTriggerTypes = parseValidatorDescriptions(
@@ -986,10 +999,9 @@ export const resetSelf = batch.bound(
       if (options?.forceClear) {
         target.value = typedDefaultValue
       } else {
+        const initialValue = target.initialValue
         target.value = toJS(
-          !isUndef(target.initialValue)
-            ? target.initialValue
-            : typedDefaultValue
+          !isUndef(initialValue) ? initialValue : typedDefaultValue
         )
       }
     }
@@ -1028,15 +1040,10 @@ export const getValidFieldDefaultValue = (value: any, initialValue: any) => {
 }
 
 export const allowAssignDefaultValue = (target: any, source: any) => {
-  const isEmptyTarget = target !== null && isEmpty(target)
-  const isEmptySource = source !== null && isEmpty(source)
   const isValidTarget = !isUndef(target)
   const isValidSource = !isUndef(source)
   if (!isValidTarget) {
-    if (isValidSource) {
-      return true
-    }
-    return false
+    return isValidSource
   }
 
   if (typeof target === typeof source) {
@@ -1044,12 +1051,10 @@ export const allowAssignDefaultValue = (target: any, source: any) => {
     if (target === 0) return false
   }
 
+  const isEmptyTarget = target !== null && isEmpty(target, true)
+  const isEmptySource = source !== null && isEmpty(source, true)
   if (isEmptyTarget) {
-    if (isEmptySource) {
-      return false
-    } else {
-      return true
-    }
+    return !isEmptySource
   }
   return false
 }
@@ -1087,4 +1092,25 @@ export const initializeEnd = () => {
   batch.endpoint(() => {
     GlobalState.initializing = false
   })
+}
+
+export const getArrayParent = (field: BaseField, index = field.index) => {
+  if (index > -1) {
+    let parent: any = field.parent
+    while (parent) {
+      if (isArrayField(parent)) return parent
+      if (parent === field.form) return
+      parent = parent.parent
+    }
+  }
+}
+
+export const getObjectParent = (field: BaseField) => {
+  let parent: any = field.parent
+  while (parent) {
+    if (isArrayField(parent)) return
+    if (isObjectField(parent)) return parent
+    if (parent === field.form) return
+    parent = parent.parent
+  }
 }

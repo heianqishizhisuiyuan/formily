@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useContext, useState } from 'react'
 import cls from 'classnames'
 import { usePrefixCls, pickDataProps } from '../__builtins__'
 import { isVoidField } from '@formily/core'
 import { connect, mapProps } from '@formily/react'
 import { useFormLayout, FormLayoutShallowContext } from '../form-layout'
-import { Tooltip, Popover } from 'antd'
+import { isElement } from 'react-is'
+import { Tooltip, Popover, ConfigProvider } from 'antd'
 import {
   QuestionCircleOutlined,
   CloseCircleOutlined,
@@ -18,12 +19,13 @@ export interface IFormItemProps {
   prefixCls?: string
   label?: React.ReactNode
   colon?: boolean
-  tooltip?: React.ReactNode
+  tooltip?: React.ReactNode | React.ComponentProps<typeof Tooltip>
   tooltipIcon?: React.ReactNode
   layout?: 'vertical' | 'horizontal' | 'inline'
   tooltipLayout?: 'icon' | 'text'
   labelStyle?: React.CSSProperties
   labelAlign?: 'left' | 'right'
+  labelFor?: string
   labelWrap?: boolean
   labelWidth?: number | string
   wrapperWidth?: number | string
@@ -42,14 +44,22 @@ export interface IFormItemProps {
   feedbackLayout?: 'loose' | 'terse' | 'popover' | 'none' | (string & {})
   feedbackStatus?: 'error' | 'warning' | 'success' | 'pending' | (string & {})
   feedbackIcon?: React.ReactNode
+  enableOutlineFeedback?: boolean
   getPopupContainer?: (node: HTMLElement) => HTMLElement
   asterisk?: boolean
+  optionalMarkHidden?: boolean
   gridSpan?: number
   bordered?: boolean
 }
 
 type ComposeFormItem = React.FC<React.PropsWithChildren<IFormItemProps>> & {
   BaseItem?: React.FC<React.PropsWithChildren<IFormItemProps>>
+}
+
+const isTooltipProps = (
+  tooltip: React.ReactNode | React.ComponentProps<typeof Tooltip>
+): tooltip is React.ComponentProps<typeof Tooltip> => {
+  return !isElement(tooltip)
 }
 
 const useFormItemLayout = (props: IFormItemProps) => {
@@ -74,6 +84,8 @@ const useFormItemLayout = (props: IFormItemProps) => {
     size: props.size ?? layout.size,
     inset: props.inset ?? layout.inset,
     asterisk: props.asterisk,
+    requiredMark: layout.requiredMark,
+    optionalMarkHidden: props.optionalMarkHidden,
     bordered: props.bordered ?? layout.bordered,
     feedbackIcon: props.feedbackIcon,
     feedbackLayout: props.feedbackLayout ?? layout.feedbackLayout ?? 'loose',
@@ -128,6 +140,7 @@ export const BaseItem: React.FC<React.PropsWithChildren<IFormItemProps>> = ({
 }) => {
   const [active, setActive] = useState(false)
   const formLayout = useFormItemLayout(props)
+  const { locale } = useContext(ConfigProvider.ConfigContext)
   const { containerRef, contentRef, overflow } = useOverflow<
     HTMLDivElement,
     HTMLSpanElement
@@ -140,12 +153,15 @@ export const BaseItem: React.FC<React.PropsWithChildren<IFormItemProps>> = ({
     addonBefore,
     addonAfter,
     asterisk,
+    requiredMark = true,
+    optionalMarkHidden = false,
     feedbackStatus,
     extra,
     feedbackText,
     fullness,
     feedbackLayout,
     feedbackIcon,
+    enableOutlineFeedback = true,
     getPopupContainer,
     inset,
     bordered = true,
@@ -210,24 +226,37 @@ export const BaseItem: React.FC<React.PropsWithChildren<IFormItemProps>> = ({
 
   const gridStyles: React.CSSProperties = {}
 
+  const tooltipNode = isTooltipProps(tooltip) ? (
+    <Tooltip {...tooltip}></Tooltip>
+  ) : (
+    tooltip
+  )
+
   const getOverflowTooltip = () => {
     if (overflow) {
       return (
         <div>
           <div>{label}</div>
-          <div>{tooltip}</div>
+          <div>{tooltipNode}</div>
         </div>
       )
     }
-    return tooltip
+    return tooltipNode
   }
 
   const renderLabelText = () => {
     const labelChildren = (
       <div className={`${prefixCls}-label-content`} ref={containerRef}>
         <span ref={contentRef}>
-          {asterisk && <span className={`${prefixCls}-asterisk`}>{'*'}</span>}
-          <label>{label}</label>
+          {asterisk && requiredMark === true && (
+            <span className={`${prefixCls}-asterisk`}>{'*'}</span>
+          )}
+          <label htmlFor={props.labelFor}>{label}</label>
+          {!asterisk && requiredMark === 'optional' && !optionalMarkHidden && (
+            <span className={`${prefixCls}-optional`}>
+              {locale?.Form?.optional}
+            </span>
+          )}
         </span>
       </div>
     )
@@ -250,7 +279,11 @@ export const BaseItem: React.FC<React.PropsWithChildren<IFormItemProps>> = ({
     if (tooltip && tooltipLayout === 'icon' && !overflow) {
       return (
         <span className={`${prefixCls}-label-tooltip-icon`}>
-          <Tooltip placement="top" align={{ offset: [0, 2] }} title={tooltip}>
+          <Tooltip
+            placement="top"
+            align={{ offset: [0, 2] }}
+            title={tooltipNode}
+          >
             {tooltipIcon}
           </Tooltip>
         </span>
@@ -290,7 +323,8 @@ export const BaseItem: React.FC<React.PropsWithChildren<IFormItemProps>> = ({
       className={cls({
         [`${prefixCls}`]: true,
         [`${prefixCls}-layout-${layout}`]: true,
-        [`${prefixCls}-${feedbackStatus}`]: !!feedbackStatus,
+        [`${prefixCls}-${feedbackStatus}`]:
+          enableOutlineFeedback && !!feedbackStatus,
         [`${prefixCls}-feedback-has-text`]: !!feedbackText,
         [`${prefixCls}-size-${size}`]: !!size,
         [`${prefixCls}-feedback-layout-${feedbackLayout}`]: !!feedbackLayout,
@@ -416,6 +450,8 @@ export const FormItem: ComposeFormItem = connect(
       feedbackStatus: takeFeedbackStatus(),
       feedbackText: takeMessage(),
       asterisk: takeAsterisk(),
+      optionalMarkHidden:
+        field.pattern === 'readPretty' && !('asterisk' in props),
       extra: props.extra || field.description,
     }
   })

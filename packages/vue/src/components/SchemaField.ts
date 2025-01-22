@@ -17,6 +17,7 @@ import { resolveSchemaProps } from '../utils/resolveSchemaProps'
 import { h } from '../shared/h'
 import { Fragment } from '../shared/fragment'
 import type { DefineComponent } from '../types'
+import { lazyMerge } from '@formily/shared'
 
 type SchemaFieldComponents = {
   SchemaField: DefineComponent<ISchemaFieldProps>
@@ -119,7 +120,7 @@ const markupProps = {
 
 export function createSchemaField<
   Components extends SchemaVueComponents = SchemaVueComponents
->(options: ISchemaFieldVueFactoryOptions<Components>): SchemaFieldComponents {
+>(options: ISchemaFieldVueFactoryOptions<Components> = {}): SchemaFieldComponents {
   const SchemaField = {
     name: 'SchemaField',
     inheritAttrs: false,
@@ -144,10 +145,7 @@ export function createSchemaField<
             })
       )
 
-      const scopeRef = computed(() => ({
-        ...options.scope,
-        ...props.scope,
-      }))
+      const scopeRef = computed(() => lazyMerge(options.scope, props.scope))
 
       const optionsRef = computed(() => ({
         ...options,

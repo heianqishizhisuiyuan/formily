@@ -147,9 +147,9 @@ export type IFieldUpdate = {
 }
 
 export interface IFormRequests {
-  validate?: NodeJS.Timeout
-  submit?: NodeJS.Timeout
-  loading?: NodeJS.Timeout
+  validate?: number
+  submit?: number
+  loading?: number
   updates?: IFieldUpdate[]
   updateIndexes?: Record<string, number>
 }
@@ -247,6 +247,8 @@ export interface IFormProps<T extends object = any> {
   readPretty?: boolean
   effects?: (form: Form<T>) => void
   validateFirst?: boolean
+  validatePattern?: FormPatternTypes[]
+  validateDisplay?: FormDisplayTypes[]
   designable?: boolean
 }
 
@@ -276,9 +278,9 @@ export interface IVoidFieldFactoryProps<
 }
 
 export interface IFieldRequests {
-  validate?: NodeJS.Timeout
-  submit?: NodeJS.Timeout
-  loading?: NodeJS.Timeout
+  validate?: number
+  submit?: number
+  loading?: number
   batch?: () => void
 }
 
@@ -349,6 +351,8 @@ export interface IFieldProps<
   readPretty?: boolean
   dataSource?: FieldDataSource
   validateFirst?: boolean
+  validatePattern?: FieldPatternTypes[]
+  validateDisplay?: FieldDisplayTypes[]
   validator?: FieldValidator
   decorator?: FieldDecorator<Decorator>
   component?: FieldComponent<Component>
@@ -432,4 +436,8 @@ export interface IFieldStateGetter {
     getter: Getter
   ): ReturnType<Getter>
   (pattern: FieldMatchPattern): IGeneralFieldState
+}
+
+export interface IFieldActions {
+  [key: string]: (...args: any[]) => any
 }
